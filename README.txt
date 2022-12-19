@@ -7,7 +7,10 @@ This project does Swarm UAV formation control for last-mile logistics applicatio
 
 Flight stack: Ardupilot multi-copter
 Simulator: Gazebo
-Dronekit-Python for communicating with the Drone instance (virtual) over MAVLink. 
+Dronekit-Python for communicating with the Drone instance (virtual) over MAVLink.
+
+Demo video:
+https://gtvault-my.sharepoint.com/:f:/g/personal/ysrivastava6_gatech_edu/EqkPdOjS0IZCoEt_AEvE_HABz28cHWNifjF1axHqP9QxTA?e=YLtGcR
 
 System Requirement:
 Ubuntu 18.04 LTS machine with ROS Melodic, Ardupilot-Gazebo plugin installed. Refer https://github.com/yash14s/Drone/tree/main/installation%20and%20setup for setup instructions.
