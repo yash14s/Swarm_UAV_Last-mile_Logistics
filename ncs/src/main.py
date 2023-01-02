@@ -15,15 +15,16 @@ A = [[0,0,1,1],[0,0,1,0],[1,1,0,1],[1,0,1,0]]
 
 #Define the weight matrices
 W_square = [[0,2,2*2**0.5,2],[2,0,2,2*2**0.5],[2*2**0.5,2,0,2],[2,2*2**0.5,2,0]]
-W_line = [[0,2,2,4],[2,0,4,6],[2,4,0,2],[4,6,2,0]]
+W_line = [[0,1.5,1.5,2.5],[1.5,0,2.5,3.5],[1.5,2.5,0,1.5],[2.5,3.5,1.5,0]]
 W_triangle = [[0,2,2,1.155],[2,0,2,1.155],[2,2,0,1.155],[1.155,1.155,1.155,0]]
 
 #Define loop_delay
 dt = 0.05
 
+#Define waypoints
 base_coords = LocationGlobalRelative(-35.3632604, 149.1652158, 1)
-pickup_coords = LocationGlobalRelative(-35.3631937, 149.1650171, 2)
-delivery_coords = LocationGlobalRelative(-35.3631852, 149.1639357, 2)
+pickup_coords = LocationGlobalRelative(-35.3631972, 149.1651100, 2)
+delivery_coords = LocationGlobalRelative(-35.3634575, 149.1647973, 2)
 
 global Drone
 Drone = np.zeros(N)
@@ -119,18 +120,32 @@ def update_adjacency_matrix(A, x, y):
                 A[i][j] = 0
     return A
 
-def rendezvous(A):
-    print("Adjacency matrix before Rendezvous:", A)
-    print("*****Executing Rendezvous*****")
-    #Initialize position
+def initialize_position():
     x = np.zeros(N)
     y = np.zeros(N)
     z = np.zeros(N)
-    #Compute the centroid
+    return x, y, z
+
+def initialize_velocity():
+    x_dot = np.zeros(N)
+    y_dot = np.zeros(N)
+    z_dot = np.zeros(N)
+    return x_dot, y_dot, z_dot
+
+def compute_position(x, y, z):
     for i in range(N):
         x[i] = Drone[i].location.global_relative_frame.lat
         y[i] = Drone[i].location.global_relative_frame.lon
         z[i] = Drone[i].location.global_relative_frame.alt
+    return x, y, z
+
+def rendezvous(A):
+    print("Adjacency matrix before Rendezvous:", A)
+    print("*****Executing Rendezvous*****")
+    #Initialize position
+    x, y, z = initialize_position()
+    #Compute the centroid
+    x, y, z = compute_position(x, y, z)
     centroid = [np.mean(x), np.mean(y), np.mean(z)]
     distance_to_centroid = np.zeros(N)
     for i in range(N):
@@ -144,18 +159,13 @@ def rendezvous(A):
 
     while(True):
         #Compute position
-        for i in range(N):
-            x[i] = Drone[i].location.global_relative_frame.lat
-            y[i] = Drone[i].location.global_relative_frame.lon
-            z[i] = Drone[i].location.global_relative_frame.alt
+        x, y, z = compute_position(x, y, z)
 
         #Update the Adjacency Matrix:
         A = update_adjacency_matrix(A, x, y)
 
         #Set velocity to zero
-        x_dot = np.zeros(N)
-        y_dot = np.zeros(N)
-        z_dot = np.zeros(N)
+        x_dot, y_dot, z_dot = initialize_velocity()
 
         #Compute velocity as per the control law. Z points downward
         for i in range(N):
@@ -168,18 +178,19 @@ def rendezvous(A):
         for i in range(N):
             send_global_ned_velocity(Drone[i], speed_bound(x_dot[i]), speed_bound(y_dot[i]), speed_bound(z_dot[i]))
 
-        #Compute current mean distance to centroid
+        #Terminating condition
+        terminate = True   
         for i in range(N):
             distance_to_centroid[i] = haversine_distance(centroid[0], centroid[1], x[i], y[i])
-        mean_distance_to_centroid_current = np.mean(distance_to_centroid)
-
-        #Terminating condition
-        if (mean_distance_to_centroid_current < (0.5 * mean_distance_to_centroid_initial)):
+            if distance_to_centroid[i] > 2:
+                terminate = False
+        if terminate:
             print("****Rendezvous Achieved!****")
             #Send velocity command to each drone
             for i in range(N):
                 send_global_ned_velocity(Drone[i], 0, 0, 0)
             break
+
         time.sleep(dt)
 
     print("Adjacency matrix after Rendezvous:", A)
@@ -198,9 +209,7 @@ def is_formation_done(x, y, z):
 def rigid_formation(A, W):
     print("****Commencing Formation****")
     #Initialize position and velocity arrays
-    x = np.zeros(N)
-    y = np.zeros(N)
-    z = np.zeros(N)
+    x, y, z = initialize_position()
     
     #Define gains k1, k2, k3
     #k1 compensates for small difference value in latitude and longitude
@@ -216,15 +225,10 @@ def rigid_formation(A, W):
     
     while(True):
         #Before each iteration, set velocity to zero
-        x_dot = np.zeros(N)
-        y_dot = np.zeros(N)
-        z_dot = np.zeros(N)
+        x_dot, y_dot, z_dot = initialize_velocity()
 
         #Compute position
-        for i in range(N):
-            x[i] = Drone[i].location.global_relative_frame.lat
-            y[i] = Drone[i].location.global_relative_frame.lon
-            z[i] = Drone[i].location.global_relative_frame.alt
+        x, y, z = compute_position(x, y, z)
 
         #Update the adjacency matrix
         A = update_adjacency_matrix(A, x, y)
@@ -254,78 +258,23 @@ def rigid_formation(A, W):
         time.sleep(dt)
 
 def select_leader(waypoint):
-    x = np.zeros(N)
-    y = np.zeros(N)
-    z = np.zeros(N)
+    x, y, z = initialize_position()
     #The drone nearest to the waypoint is chosen as the leader
     min_distance = np.inf
     leader = None
     #Compute position
+    x, y, z = compute_position(x, y, z)
     for i in range(N):
-        x[i] = Drone[i].location.global_relative_frame.lat
-        y[i] = Drone[i].location.global_relative_frame.lon
-        z[i] = Drone[i].location.global_relative_frame.alt
-
         distance_to_waypoint = haversine_distance(x[i], y[i], waypoint.lat, waypoint.lon)
         if distance_to_waypoint < min_distance:
             min_distance = distance_to_waypoint
             leader = i        
     print("Leader is Drone ",leader+1)
-
     return leader
-          
-    distance_to_destination_initial = haversine_distance(x[leader], y[leader], waypoint.lat, waypoint.lon)
-    
-    while(True):
-        #Before each iteration, set velocity to zero
-        x_dot = np.zeros(N)
-        y_dot = np.zeros(N)
-        z_dot = np.zeros(N)
-
-        #Compute position
-        for i in range(N):
-            x[i] = Drone[i].location.global_relative_frame.lat
-            y[i] = Drone[i].location.global_relative_frame.lon
-            z[i] = Drone[i].location.global_relative_frame.alt
-
-        #Compute velocity as per the control law. Z points downward
-        #Define control law for the leader:
-        x_goal = pickup_coords[0]
-        y_goal = pickup_coords[1]
-        z_goal = pickup_coords[2]
-        heading = math.atan2(y_goal-y[leader], x_goal-x[leader])
-        x_dot[leader] = nav_speed * math.cos(heading)
-        y_dot[leader] = nav_speed * math.sin(heading)
-        z_dot[leader] = -k4 * (z_goal - z[leader])
-
-        #Define the control law for the followers:
-        #Rigid formation in the X-Y Plane, Rendezvous about the Z-axis
-        for i in range(N):
-            if i != leader:
-                for j in range(N):
-                    rigid_weight = k3 * (haversine_distance(x[i],y[i],x[j],y[j]) - W[i][j])
-                    x_dot[i] -= A[i][j] * rigid_weight * k1 * (x[i] - x[j])
-                    y_dot[i] -= A[i][j] * rigid_weight * k1 * (y[i] - y[j])
-                    z_dot[i] -= -(A[i][j] * k2 * (z[i] - z[j]))
-
-        #Send velocity command to each drone
-        for i in range(N):
-            send_global_ned_velocity(Drone[i], speed_bound(x_dot[i]), speed_bound(y_dot[i]), speed_bound(z_dot[i]))
-
-        #Current distance to the destination
-        distance_to_destination_current = haversine_distance(x[leader], y[leader], pickup_coords[0], pickup_coords[1])
-
-        #Terminating condition
-        
-        if (distance_to_destination_current < (0.01 * distance_to_destination_initial)):
-            print("****Reached Destination!****")
-            #Send velocity command to each drone
-            for i in range(N):
-                send_global_ned_velocity(Drone[i], 0, 0, 0)
-        time.sleep(dt)
 
 def is_navigation_done(initial_distance, waypoint, x, y):
     current_distance = haversine_distance(waypoint.lat, waypoint.lon, x, y)
+    #print("Current Distance:",current_distance)
     if current_distance < 0.1 * initial_distance:
         print("*****Reached*****")
         return True
@@ -334,9 +283,7 @@ def is_navigation_done(initial_distance, waypoint, x, y):
 def fly_in_formation(waypoint, A, W):
     print("****Flying to Waypoint****")
     #Initialize position and velocity arrays
-    x = np.zeros(N)
-    y = np.zeros(N)
-    z = np.zeros(N)
+    x, y, z = initialize_position()
     
     #Define gains k1, k2, k3, k4 and leader's speed
     #k1 compensates for small difference value in latitude and longitude
@@ -362,15 +309,10 @@ def fly_in_formation(waypoint, A, W):
     while(True):
         try:
             #Before each iteration, set velocities to zero
-            x_dot = np.zeros(N)
-            y_dot = np.zeros(N)
-            z_dot = np.zeros(N)
+            x_dot, y_dot, z_dot = initialize_velocity()
 
             #Compute position of each drone
-            for i in range(N):
-                x[i] = Drone[i].location.global_relative_frame.lat
-                y[i] = Drone[i].location.global_relative_frame.lon
-                z[i] = Drone[i].location.global_relative_frame.alt
+            x, y, z = compute_position(x, y, z)
 
             #Update the Adjacency Matrix
             A = update_adjacency_matrix(A, x, y)
@@ -404,7 +346,7 @@ def fly_in_formation(waypoint, A, W):
                 send_global_ned_velocity(Drone[i], speed_bound(x_dot[i]), speed_bound(y_dot[i]), speed_bound(z_dot[i]))
 
             #Check if reached the waypoint
-            if is_navigation_done(distance_to_destination_initial, waypoint, x_dot[leader], y_dot[leader]):
+            if is_navigation_done(distance_to_destination_initial, waypoint, x[leader], y[leader]):
                 break
             time.sleep(dt)
 
@@ -448,6 +390,3 @@ for i in range(N):
 rigid_formation(A, W_triangle)
 fly_in_formation(base_coords, A, W_triangle)
 disarm()
-
-
-
