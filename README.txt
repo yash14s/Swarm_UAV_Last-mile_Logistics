@@ -38,7 +38,7 @@ iv. In terminal(D):
 v. In terminal(E): 
 	$ conda activate py3env
 	$ sim_vehicle.py -v ArduCopter -f gazebo-iris --console -I3
-	This will connect the ardupilot to the 4th drone (I4).
+	This will connect the ardupilot to the 4th drone (I3).
 
 vi. In terminal(F):
     	$ conda activate py3env
