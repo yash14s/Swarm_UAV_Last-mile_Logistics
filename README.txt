@@ -10,7 +10,7 @@ Simulator: Gazebo
 Dronekit-Python for communicating with the Drone instance (virtual) over MAVLink.
 
 Demo video:
-https://youtu.be/qTLwIL3fcqs
+https://youtu.be/qTLwIL3fcqs 
 
 System Requirement:
 Ubuntu 18.04 LTS machine with ROS Melodic, Ardupilot-Gazebo plugin installed. Refer https://github.com/yash14s/Drone/tree/main/installation%20and%20setup for setup instructions.
